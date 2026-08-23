@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Flasky - Resposta de Login{% endblock %}
+
+{% block page_content %}
+<div class="container" style="margin-top: 30px;">
+    
+    <div class="page-header">
+        <h2>Dados do acesso</h2>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <h3>Você está acessando o sistema por meio do usuário {{ usuario }}</h3>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top: 40px;">
+        <div class="col-md-12">
+            <p>The local date and time is {{ moment(current_time).format('LLL') }}.</p>
+            <p>That was {{ moment(current_time).fromNow(refresh=True) }}.</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
