@@ -6,26 +6,14 @@
 
 {% block page_content %}
 <div class="page-header">
-    <!--div class="container">
-        {% for message in get_flashed_messages() %}
-        <div class="alert alert-warning">
-            <button type="button" class="close" data-dismiss="alert">&times;</button>
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div-->
-
-    <h1>Olá, {% if name and sobrenome%}{{ name ~ ' ' ~ sobrenome}}{% else %}estranho{% endif %}!</h1>
-    <h3>A sua instituição de ensino é {% if inst_ens %}{{ inst_ens }}{% else %}???{% endif %}</h3>
-    <h3>Está cursando a disciplina de {% if disciplina %}{{ disciplina }}{% else %}???{% endif %}</h3>
-    <p><strong>O IP do computador remoto é: {{ request.remote_addr }}</strong></p>
-    <p><strong>O host da aplicação é: {{ request.host }}</strong></p>
+    <h1>Hello, {{ name }}!</h1>
+        {% if not known %}
+  <p>Pleased to meet you!</p>
+        {% else %}
+  <p>Happy to see you again!</p>
+        {% endif %}
 </div>
 
 {{ wtf.quick_form(form) }}
-
-    <br>
-    <p>The local date and time is {{ moment(current_time).format('LLL') }}.</p>
-    <p>That was {{ moment(current_time).fromNow(refresh=True) }}.</p>
 
 {% endblock %}
