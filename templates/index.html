@@ -6,14 +6,32 @@
 
 {% block page_content %}
 <div class="page-header">
-    <h1>Hello, {{ name }}!</h1>
-        {% if not known %}
-  <p>Pleased to meet you!</p>
-        {% else %}
-  <p>Happy to see you again!</p>
-        {% endif %}
+    <h1>Olá, {% if name %}{{ name }}{% else %}Stranger{% endif %}!</h1>
+    {% if not known %}
+    <p>Prazer em conhecê-lo!</p>
+    {% else %}
+    <p>Feliz em revê-lo!</p>
+    {% endif %}
 </div>
 
 {{ wtf.quick_form(form) }}
+
+<h2>Relação de usuários cadastrados</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nome do usuário</th>
+            <th>Função</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ user.role.name if user.role else 'User' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 {% endblock %}
