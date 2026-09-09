@@ -22,7 +22,8 @@ migrate = Migrate(app, db)
 
 
 class NameForm(FlaskForm):
-    name = StringField('What is your name?', validators=[DataRequired()])
+    name = StringField('Qual é o seu nome?', validators=[DataRequired()])
+    funcao = SelectField('Qual a sua função?', choices=[('User', 'User'), ('Administrator', 'Administrator'), ('Moderator', 'Moderator')])
     submit = SubmitField('Submit')
 
 
@@ -46,66 +47,57 @@ class User(db.Model):
         return '<User %r>' % self.username
 
 
-@app.shell_context_processor
-def make_shell_context():
-    return dict(db=db, User=User, Role=Role)
-
-
-# Semana 07
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
     if form.validate_on_submit():
+        #verifica se o usuário existe
         user = User.query.filter_by(username=form.name.data).first()
+        #se não existir:
         if user is None:
-            user = User(username=form.name.data)
+            #encontra a função selecionada no selectField
+            user_role = Role.query.filter_by(name=form.funcao.data).first()
+            #se a função ainda não existir no BD, cria ela
+            if user_role is None:
+                user_role = Role(name=form.funcao.data)
+                db.session.add(user_role)
+            #cria as informações do usuário
+            user = User(username=form.name.data, role=user_role)
+            #adiciona o usuário no BD
             db.session.add(user)
             db.session.commit()
             session['known'] = False
         else:
             session['known'] = True
+
         session['name'] = form.name.data
+        session['funcao'] = form.funcao.data
         return redirect(url_for('index'))
+    #Conta a quantidade de users e roles existentes
+    qtdUsers = User.query.count()
+    qtdRoles = Role.query.count()
 
+    #Encontra o nome das roles
+    roles = Role.query.order_by(Role.id).all()
+
+    #Encontra todos os usuários
     users = User.query.order_by(User.id).all()
-    return render_template('index.html', form=form,
-                            name=session.get('name'),
-                            known=session.get('known', False),
-                            current_time=datetime.utcnow(),
-                            users=users)
 
+    #A função selecionada é guardada
+    funcaoDaSessao = session.get('funcao')
+    #filtra pelo nome da função, ignorando caracteres maiúsculos e minúsculos por utilizar ilike
+    userRole = Role.query.filter(Role.name.ilike(funcaoDaSessao)).first() if funcaoDaSessao else None
 
-class LoginFormulario(FlaskForm):
-    user = StringField(
-        '',
-        validators=[DataRequired()],
-        render_kw={"placeholder": "Usuário ou e-mail"}
-    )
-    senha = PasswordField(
-        '',
-        validators=[DataRequired()],
-        render_kw={"placeholder": "Informe a sua senha"}
-    )
-    enviar = SubmitField('Enviar')
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    form = LoginFormulario()
-    if form.validate_on_submit():
-        session['usuario_login'] = form.user.data
-        return redirect(url_for('loginResponse'))
-
-    return render_template('login.html', form=form, current_time=datetime.utcnow())
-
-
-@app.route('/loginResponse')
-def loginResponse():
-    usuario = session.get('usuario_login', '')
 
     return render_template(
-        'loginResponse.html',
-        usuario=usuario,
-        current_time=datetime.utcnow()
-    )
-
+        'index.html',
+        form=form,
+        name=session.get('name'),
+        known=session.get('known', False),
+        current_time=datetime.utcnow(),
+        users=users,
+        roles=roles,
+        qtdUsers=qtdUsers,
+        qtdRoles=qtdRoles,
+        userRole=userRole
+   )
