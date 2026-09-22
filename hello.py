@@ -1,14 +1,18 @@
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, session, redirect, url_for
 from flask_bootstrap import Bootstrap
 from flask_moment import Moment, datetime
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, PasswordField
+from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from dotenv import load_dotenv
+import resend
 
+project_folder = os.path.expanduser('~/flasky')
 basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(project_folder, '.env'))
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'Abidi@1329'
@@ -20,10 +24,15 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+app.config['API_KEY'] = os.environ.get('API_KEY')
+app.config['API_URL'] = os.environ.get('API_URL')
+app.config['API_FROM'] = os.environ.get('API_FROM')
+
+app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]'
+app.config['FLASKY_ADMIN'] = os.environ.get('FLASKY_ADMIN')
 
 class NameForm(FlaskForm):
     name = StringField('Qual é o seu nome?', validators=[DataRequired()])
-    funcao = SelectField('Qual a sua função?', choices=[('User', 'User'), ('Administrator', 'Administrator'), ('Moderator', 'Moderator')])
     submit = SubmitField('Submit')
 
 
@@ -37,6 +46,7 @@ class Role(db.Model):
         return '<Role %r>' % self.name
 
 
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -46,47 +56,41 @@ class User(db.Model):
     def __repr__(self):
         return '<User %r>' % self.username
 
+resend.api_key = os.getenv('API_KEY')
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
     if form.validate_on_submit():
         #verifica se o usuário existe
+        destinatarios = [os.getenv('API_FROM')]
         user = User.query.filter_by(username=form.name.data).first()
         #se não existir:
         if user is None:
-            #encontra a função selecionada no selectField
-            user_role = Role.query.filter_by(name=form.funcao.data).first()
-            #se a função ainda não existir no BD, cria ela
-            if user_role is None:
-                user_role = Role(name=form.funcao.data)
-                db.session.add(user_role)
             #cria as informações do usuário
-            user = User(username=form.name.data, role=user_role)
+            user = User(username=form.name.data)
             #adiciona o usuário no BD
             db.session.add(user)
             db.session.commit()
             session['known'] = False
+            for destinatario in destinatarios:
+                resend.Emails.send({
+                    "from": "onboarding@resend.dev",
+                    "to": destinatario,
+                    "subject": "Novo Cadastro",
+                    "html": f"""<h1>Novo cadastro</h1>
+                        <p>Nome cadastrado: {user.username}</p>
+                        <p>Prontuário: PT3037461</p>
+                        <p>Aluno: Henrique Teodoro Silva</p>
+                    """
+                    });
+
         else:
             session['known'] = True
 
         session['name'] = form.name.data
-        session['funcao'] = form.funcao.data
         return redirect(url_for('index'))
-    #Conta a quantidade de users e roles existentes
-    qtdUsers = User.query.count()
-    qtdRoles = Role.query.count()
-
-    #Encontra o nome das roles
-    roles = Role.query.order_by(Role.id).all()
-
-    #Encontra todos os usuários
-    users = User.query.order_by(User.id).all()
-
-    #A função selecionada é guardada
-    funcaoDaSessao = session.get('funcao')
-    #filtra pelo nome da função, ignorando caracteres maiúsculos e minúsculos por utilizar ilike
-    userRole = Role.query.filter(Role.name.ilike(funcaoDaSessao)).first() if funcaoDaSessao else None
 
 
     return render_template(
@@ -95,9 +99,11 @@ def index():
         name=session.get('name'),
         known=session.get('known', False),
         current_time=datetime.utcnow(),
-        users=users,
-        roles=roles,
-        qtdUsers=qtdUsers,
-        qtdRoles=qtdRoles,
-        userRole=userRole
    )
+
+
+
+
+
+
+
