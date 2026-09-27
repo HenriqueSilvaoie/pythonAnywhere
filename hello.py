@@ -2,7 +2,7 @@ from flask import Flask, render_template, session, redirect, url_for
 from flask_bootstrap import Bootstrap
 from flask_moment import Moment, datetime
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField
+from wtforms import StringField, SubmitField, BooleanField
 from wtforms.validators import DataRequired
 import os
 from flask_sqlalchemy import SQLAlchemy
@@ -33,6 +33,7 @@ app.config['FLASKY_ADMIN'] = os.environ.get('FLASKY_ADMIN')
 
 class NameForm(FlaskForm):
     name = StringField('Qual é o seu nome?', validators=[DataRequired()])
+    enviar_email = BooleanField('Enviar e-mail para flaskaulasweb@zohomail.com')
     submit = SubmitField('Submit')
 
 
@@ -64,7 +65,7 @@ def index():
     form = NameForm()
     if form.validate_on_submit():
         #verifica se o usuário existe
-        destinatarios = [os.getenv('API_FROM')]
+        destinatarios = [os.getenv('EMAIL_FABIO'), os.getenv('API_FROM')]
         user = User.query.filter_by(username=form.name.data).first()
         #se não existir:
         if user is None:
@@ -74,23 +75,28 @@ def index():
             db.session.add(user)
             db.session.commit()
             session['known'] = False
-            for destinatario in destinatarios:
-                resend.Emails.send({
-                    "from": "onboarding@resend.dev",
-                    "to": destinatario,
-                    "subject": "Novo Cadastro",
-                    "html": f"""<h1>Novo cadastro</h1>
-                        <p>Nome cadastrado: {user.username}</p>
-                        <p>Prontuário: PT3037461</p>
-                        <p>Aluno: Henrique Teodoro Silva</p>
-                    """
-                    });
-
+            if form.enviar_email.data:
+                for destinatario in destinatarios:
+                    try:
+                        resend.Emails.send({
+                            "from": "onboarding@resend.dev",
+                            "to": destinatario,
+                            "subject": "Novo Cadastro",
+                            "html": f"""<h1>Novo cadastro</h1>
+                                <p>Nome cadastrado: {user.username}</p>
+                                <p>Prontuário: PT3037461</p>
+                                <p>Aluno: Henrique Teodoro Silva</p>
+                            """
+                            });
+                    except Exception as e:
+                        print(f"Erro ao enviar email pelo Resend: {e}")
         else:
             session['known'] = True
 
         session['name'] = form.name.data
         return redirect(url_for('index'))
+
+    users=User.query.all()
 
 
     return render_template(
@@ -99,6 +105,7 @@ def index():
         name=session.get('name'),
         known=session.get('known', False),
         current_time=datetime.utcnow(),
+        users=users
    )
 
 
