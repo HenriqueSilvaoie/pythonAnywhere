@@ -8,7 +8,8 @@ import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-import resend
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 project_folder = os.path.expanduser('~/flasky')
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -57,15 +58,13 @@ class User(db.Model):
     def __repr__(self):
         return '<User %r>' % self.username
 
-resend.api_key = os.getenv('API_KEY')
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
     if form.validate_on_submit():
         #verifica se o usuário existe
-        destinatarios = [os.getenv('EMAIL_FABIO'), os.getenv('API_FROM')]
+        destinatarios = [os.getenv('EMAIL_FABIO'), os.getenv('FLASKY_ADMIN')]
         user = User.query.filter_by(username=form.name.data).first()
         #se não existir:
         if user is None:
@@ -77,19 +76,22 @@ def index():
             session['known'] = False
             if form.enviar_email.data:
                 for destinatario in destinatarios:
-                    try:
-                        resend.Emails.send({
-                            "from": "onboarding@resend.dev",
-                            "to": destinatario,
-                            "subject": "Novo Cadastro",
-                            "html": f"""<h1>Novo cadastro</h1>
-                                <p>Nome cadastrado: {user.username}</p>
-                                <p>Prontuário: PT3037461</p>
-                                <p>Aluno: Henrique Teodoro Silva</p>
-                            """
-                            });
-                    except Exception as e:
-                        print(f"Erro ao enviar email pelo Resend: {e}")
+                   mensagem = Mail(
+                    from_email=os.getenv('API_FROM'),
+                    to_emails=destinatarios,  # O SendGrid aceita uma lista de e-mails diretamente
+                    subject='Novo Cadastro de Usuário',
+                    html_content=f"""
+                        <h1>Novo cadastro realizado!</h1>
+                        <p><b>Nome cadastrado:</b> {user.username}</p>
+                        <p><b>Prontuário:</b> PT3037461</p>
+                        <p><b>Aluno:</b> Henrique Teodoro Silva</p>
+                    """
+                    )
+                try:
+                    sg = SendGridAPIClient(os.getenv('API_KEY'))
+                    sg.send(mensagem)
+                except Exception as e:
+                    print(f"Erro ao enviar email pelo SendGrid: {e}")
         else:
             session['known'] = True
 
