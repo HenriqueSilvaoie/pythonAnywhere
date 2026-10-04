@@ -47,7 +47,14 @@ class Role(db.Model):
     def __repr__(self):
         return '<Role %r>' % self.name
 
-
+class EmailEnviado(db.Model):
+    __tablename__= 'emails'
+    id = db.Column(db.Integer, primary_key=True)
+    remetente = db.Column(db.String(100))
+    destinatarios = db.Column(db.String(300))
+    assunto = db.Column(db.String(200))
+    texto = db.Column(db.Text)
+    data_hora = db.Column(db.DateTime, default=datetime.now)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -58,40 +65,55 @@ class User(db.Model):
     def __repr__(self):
         return '<User %r>' % self.username
 
+@app.route('/emailsEnviados')
+def emailsEnviados():
+    emails = EmailEnviado.query.order_by(EmailEnviado.data_hora.desc()).all()
+    return render_template('email.html', emails=emails)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
     if form.validate_on_submit():
-        #verifica se o usuário existe
-        destinatarios = [os.getenv('EMAIL_FABIO'), os.getenv('FLASKY_ADMIN')]
+
+        destinatarios = [os.getenv('FLASKY_ADMIN')]
         user = User.query.filter_by(username=form.name.data).first()
         #se não existir:
         if user is None:
-            #cria as informações do usuário
+
             user = User(username=form.name.data)
-            #adiciona o usuário no BD
+
             db.session.add(user)
             db.session.commit()
             session['known'] = False
             if form.enviar_email.data:
-                for destinatario in destinatarios:
-                   mensagem = Mail(
-                    from_email=os.getenv('API_FROM'),
-                    to_emails=destinatarios,  # O SendGrid aceita uma lista de e-mails diretamente
-                    subject='Novo Cadastro de Usuário',
-                    html_content=f"""
-                        <h1>Novo cadastro realizado!</h1>
-                        <p><b>Nome cadastrado:</b> {user.username}</p>
-                        <p><b>Prontuário:</b> PT3037461</p>
-                        <p><b>Aluno:</b> Henrique Teodoro Silva</p>
-                    """
-                    )
-                try:
-                    sg = SendGridAPIClient(os.getenv('API_KEY'))
-                    sg.send(mensagem)
-                except Exception as e:
-                    print(f"Erro ao enviar email pelo SendGrid: {e}")
+                destinatarios.append(os.getenv('EMAIL_FABIO'))
+
+            subject = 'Novo Cadastro'
+
+            for destinatario in destinatarios:
+               mensagem = Mail(
+                from_email=os.getenv('API_FROM'),
+                to_emails = destinatarios,
+                subject=subject,
+                html_content=f"""
+                    <p><b>Nome cadastrado:</b> {user.username}</p>
+                    <p><b>Prontuário:</b> PT3037461</p>
+                    <p><b>Aluno:</b> Henrique Teodoro Silva</p>
+                """
+                )
+            try:
+                sg = SendGridAPIClient(os.getenv('API_KEY'))
+                sg.send(mensagem)
+                db.session.add(EmailEnviado(
+                    remetente = user.username,
+                    destinatarios = ", ".join(destinatarios),
+                    assunto = subject,
+                    texto = f'Novo usuário cadastrado: {user.username}'
+                    ))
+                db.session.commit()
+
+            except Exception as e:
+                print(f"Erro ao enviar email pelo SendGrid: {e}")
         else:
             session['known'] = True
 
